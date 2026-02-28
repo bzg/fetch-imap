@@ -10,6 +10,8 @@ Early development — API may change before 1.0.
 
 ## Installation
 
+[![Clojars Project](https://img.shields.io/clojars/v/org.clojars.bzg/fetch-imap.svg)](https://clojars.org/org.clojars.bzg/fetch-imap)
+
 deps.edn:
 
 ```clojure
