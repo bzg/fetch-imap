@@ -18,6 +18,12 @@
                 :version   version
                 :basis     @basis
                 :src-dirs  ["src"]
+                :pom-data  [[:description "Minimal, read-only Clojure library for fetching and parsing IMAP email"]
+                            [:url "https://github.com/bzg/fetch-imap"]
+                            [:licenses
+                             [:license
+                              [:name "Eclipse Public License 2.0"]
+                              [:url "https://www.eclipse.org/legal/epl-2.0/"]]]]
                 :scm       {:url "https://github.com/bzg/fetch-imap"
                             :connection "scm:git:git://github.com/bzg/fetch-imap.git"
                             :developerConnection "scm:git:ssh://git@github.com/bzg/fetch-imap.git"
