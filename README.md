@@ -1,3 +1,5 @@
+[![Clojars Project](https://img.shields.io/clojars/v/org.clojars.bzg/fetch-imap.svg)](https://clojars.org/org.clojars.bzg/fetch-imap)
+
 # fetch-imap
 
 A minimal, read-only Clojure library for fetching and parsing IMAP email.
@@ -9,8 +11,6 @@ Built on [Eclipse Angus Mail](https://eclipse-ee4j.github.io/angus-mail/) (the m
 Early development — API may change before 1.0.
 
 ## Installation
-
-[![Clojars Project](https://img.shields.io/clojars/v/org.clojars.bzg/fetch-imap.svg)](https://clojars.org/org.clojars.bzg/fetch-imap)
 
 deps.edn:
 
