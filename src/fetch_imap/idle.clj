@@ -2,11 +2,15 @@
   "IMAP IDLE support for receiving push notifications when new messages arrive.
 
   IDLE keeps a connection open and the server notifies the client when
-  the folder state changes (new messages, deletions, flag changes)."
+  the folder state changes (new messages, deletions, flag changes).
+
+  A heartbeat thread periodically breaks out of IDLE to force a NOOP
+  roundtrip, preventing NATs/firewalls/servers from killing the connection."
   (:require [fetch-imap.folder :as folder]
             [fetch-imap.parse :as parse])
   (:import [jakarta.mail Folder Store MessageCountListener]
-           [jakarta.mail.event MessageCountEvent]))
+           [jakarta.mail.event MessageCountEvent]
+           [org.eclipse.angus.mail.imap IMAPFolder]))
 
 (defn- make-message-listener
   "Create a MessageCountListener that calls on-added when new messages arrive."
@@ -23,17 +27,48 @@
       ;; We don't act on removals in a read-only library
       nil)))
 
+(defn- start-heartbeat
+  "Start a daemon thread that sends a NOOP to the folder at regular intervals
+  by calling .doCommand, which forces the server to break out of IDLE.
+  Returns the Thread."
+  [^IMAPFolder imap-folder ^Store store interval-ms on-error]
+  (let [t (Thread.
+           (fn []
+             (while (and (not (Thread/interrupted))
+                         (.isOpen imap-folder)
+                         (.isConnected store))
+               (try
+                 (Thread/sleep interval-ms)
+                 ;; doCommand with a NOOP forces the folder to exit IDLE,
+                 ;; do a server roundtrip, then IDLE will be re-entered
+                 ;; by the main loop.
+                 (when (and (.isOpen imap-folder)
+                            (.isConnected store))
+                   (.doCommand imap-folder
+                               (reify org.eclipse.angus.mail.imap.IMAPFolder$ProtocolCommand
+                                 (doCommand [_ protocol]
+                                   (.simpleCommand protocol "NOOP" nil)
+                                   nil))))
+                 (catch InterruptedException _
+                   nil)
+                 (catch Exception e
+                   (on-error e)))))
+           "fetch-imap-heartbeat")]
+    (.setDaemon t true)
+    (.start t)
+    t))
+
 (defn idle
   "Start an IDLE loop on a folder, calling on-message for each new message.
 
-  This function blocks the current thread. It will automatically re-issue
-  the IDLE command when it times out (servers typically time out after ~29 min).
+  This function blocks the current thread. A heartbeat thread periodically
+  breaks IDLE and forces a NOOP roundtrip to keep the connection alive.
 
   Options:
-    :parse-opts  - options to pass to message->map (default: {})
-    :on-error    - function called with Exception on errors (default: prints)
-    :keep-alive-ms - interval to re-issue IDLE if the server doesn't
-                     support indefinite IDLE (default: 1680000 = 28 min)
+    :parse-opts    - options to pass to message->map (default: {})
+    :on-error      - function called with Exception on errors (default: prints)
+    :heartbeat-ms  - interval between NOOP heartbeats in ms
+                     (default: 1200000 = 20 minutes)
 
   Returns nil when the folder or store is closed, or when the thread
   is interrupted.
@@ -42,30 +77,33 @@
     (future
       (idle conn \"INBOX\"
             (fn [msg] (println \"New:\" (:subject msg)))
-            {:parse-opts {:attachments? false}}))"
+            {:parse-opts {:attachments? false}
+             :heartbeat-ms 900000}))"
   ([conn folder-name on-message] (idle conn folder-name on-message {}))
-  ([conn folder-name on-message {:keys [parse-opts on-error keep-alive-ms]
-                                  :or   {parse-opts    {}
-                                         on-error      #(println "IDLE error:" (.getMessage %))
-                                         keep-alive-ms 1680000}}]
-   (let [folder   (folder/open-folder conn folder-name)
-         listener (make-message-listener on-message parse-opts)]
+  ([conn folder-name on-message {:keys [parse-opts on-error heartbeat-ms]
+                                  :or   {parse-opts   {}
+                                         on-error     #(println "IDLE error:" (.getMessage %))
+                                         heartbeat-ms 1200000}}]
+   (let [folder       (folder/open-folder conn folder-name)
+         imap-folder  ^IMAPFolder folder
+         ^Store store (:store conn)
+         listener     (make-message-listener on-message parse-opts)
+         heartbeat    (start-heartbeat imap-folder store heartbeat-ms on-error)]
      (.addMessageCountListener folder listener)
      (try
        (loop []
          (when (and (.isOpen folder)
-                    (.isConnected ^Store (:store conn))
+                    (.isConnected store)
                     (not (Thread/interrupted)))
            (try
-             ;; IDLE command — blocks until server sends a notification
-             ;; or the keep-alive timeout is reached.
-             ;; The folder must support IDLE (most modern IMAP servers do).
-             (let [imap-folder ^org.eclipse.angus.mail.imap.IMAPFolder folder]
-               (.idle imap-folder))
+             ;; IDLE command — blocks until:
+             ;; - server sends a notification (new mail, expunge, etc.)
+             ;; - heartbeat thread sends a NOOP (breaking IDLE)
+             ;; - connection dies
+             (.idle imap-folder)
              (catch org.eclipse.angus.mail.imap.IMAPFolder$IdleFailedException _
-               ;; Server doesn't support IDLE — fall back to polling
-               (Thread/sleep keep-alive-ms)
-               ;; Force a NOOP to check for new messages
+               ;; Server doesn't support IDLE — fall back to sleep + NOOP
+               (Thread/sleep heartbeat-ms)
                (.getMessageCount folder))
              (catch jakarta.mail.FolderClosedException _
                nil)  ;; Exit the loop
@@ -74,6 +112,7 @@
                (Thread/sleep 5000)))
            (recur)))
        (finally
+         (.interrupt heartbeat)
          (.removeMessageCountListener folder listener)
          (folder/close-folder folder))))))
 
