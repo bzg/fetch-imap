@@ -8,7 +8,7 @@
   roundtrip, preventing NATs/firewalls/servers from killing the connection."
   (:require [fetch-imap.folder :as folder]
             [fetch-imap.parse :as parse])
-  (:import [jakarta.mail Folder Store]
+  (:import [jakarta.mail Folder Store MessagingException]
            [jakarta.mail.event MessageCountListener MessageCountEvent]
            [org.eclipse.angus.mail.imap IMAPFolder]))
 
@@ -101,7 +101,7 @@
              ;; - heartbeat thread sends a NOOP (breaking IDLE)
              ;; - connection dies
              (.idle imap-folder)
-             (catch org.eclipse.angus.mail.imap.IMAPFolder$IdleFailedException _
+             (catch jakarta.mail.MessagingException e
                ;; Server doesn't support IDLE — fall back to sleep + NOOP
                (Thread/sleep heartbeat-ms)
                (.getMessageCount folder))
