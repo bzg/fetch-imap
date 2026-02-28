@@ -163,6 +163,6 @@ clj -T:build deploy
 
 ## License
 
-Copyright © 2025 Bastien Guerry
+Copyright © 2026 Bastien Guerry
 
 Distributed under the Eclipse Public License 2.0.
