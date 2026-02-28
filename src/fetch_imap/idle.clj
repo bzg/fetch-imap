@@ -8,8 +8,8 @@
   roundtrip, preventing NATs/firewalls/servers from killing the connection."
   (:require [fetch-imap.folder :as folder]
             [fetch-imap.parse :as parse])
-  (:import [jakarta.mail Folder Store MessageCountListener]
-           [jakarta.mail.event MessageCountEvent]
+  (:import [jakarta.mail Folder Store]
+           [jakarta.mail.event MessageCountListener MessageCountEvent]
            [org.eclipse.angus.mail.imap IMAPFolder]))
 
 (defn- make-message-listener
@@ -81,9 +81,9 @@
              :heartbeat-ms 900000}))"
   ([conn folder-name on-message] (idle conn folder-name on-message {}))
   ([conn folder-name on-message {:keys [parse-opts on-error heartbeat-ms]
-                                  :or   {parse-opts   {}
-                                         on-error     #(println "IDLE error:" (.getMessage %))
-                                         heartbeat-ms 1200000}}]
+                                 :or   {parse-opts   {}
+                                        on-error     #(println "IDLE error:" (.getMessage %))
+                                        heartbeat-ms 1200000}}]
    (let [folder       (folder/open-folder conn folder-name)
          imap-folder  ^IMAPFolder folder
          ^Store store (:store conn)
