@@ -106,9 +106,10 @@
   [^Part part]
   (try
     (let [content (.getContent part)]
-      (if (string? content)
-        content
-        (str content)))
+      (cond
+        (string? content)              content
+        (instance? InputStream content) (String. (input-stream->bytes content) "UTF-8")
+        :else                          (str content)))
     (catch Exception _ nil)))
 
 (defn- parse-attachment

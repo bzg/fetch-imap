@@ -199,7 +199,7 @@
          uid-seq  (if (coll? uids) uids [uids])
          msgs     (into-array Message
                               (keep #(try (.getMessageByUID uid-folder (long %))
-                                         (catch Exception _ nil))
+                                          (catch Exception _ nil))
                                     uid-seq))]
      (try
        (if (:raw? opts)
