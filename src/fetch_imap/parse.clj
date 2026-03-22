@@ -213,6 +213,7 @@
     :uid          - IMAP UID (long, or nil if unavailable)
     :message-id   - Message-ID header
     :message-number - sequence number in folder
+    :size         - message size in bytes (-1 if unknown)
     :from         - vector of {:name :address} maps
     :to           - vector of {:name :address} maps
     :cc           - vector of {:name :address} maps
@@ -244,6 +245,7 @@
      (cond-> {:uid            (get-uid msg)
               :message-id     (.getMessageID mime-msg)
               :message-number (.getMessageNumber msg)
+              :size           (.getSize msg)
               :from           (parse-addresses (.getFrom msg))
               :to             (parse-addresses (.getRecipients msg Message$RecipientType/TO))
               :cc             (parse-addresses (.getRecipients msg Message$RecipientType/CC))
