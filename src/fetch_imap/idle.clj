@@ -105,12 +105,15 @@
              ;; - heartbeat thread sends a NOOP (breaking IDLE)
              ;; - connection dies
              (.idle imap-folder)
-             (catch jakarta.mail.MessagingException e
-               ;; Server doesn't support IDLE — fall back to sleep + NOOP
-               (Thread/sleep heartbeat-ms)
-               (.getMessageCount folder))
              (catch jakarta.mail.FolderClosedException _
                nil)  ;; Exit the loop
+             (catch jakarta.mail.MessagingException e
+               (if (re-find #"(?i)IDLE not supported" (or (.getMessage e) ""))
+                 ;; Server doesn't support IDLE — fall back to sleep + NOOP
+                 (do (Thread/sleep heartbeat-ms)
+                     (.getMessageCount folder))
+                 (do (on-error e)
+                     (Thread/sleep 5000))))
              (catch Exception e
                (on-error e)
                (Thread/sleep 5000)))

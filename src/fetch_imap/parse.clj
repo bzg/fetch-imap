@@ -121,8 +121,8 @@
      :size         (.getSize part)
      :data         (input-stream->bytes (.getInputStream part))}
     (catch Exception e
-      {:filename     (decode-header (.getFileName part))
-       :content-type (content-type-base (.getContentType part))
+      {:filename     (try (decode-header (.getFileName part)) (catch Exception _ nil))
+       :content-type (try (content-type-base (.getContentType part)) (catch Exception _ nil))
        :error        (.getMessage e)})))
 
 (declare walk-parts)

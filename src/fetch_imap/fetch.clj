@@ -44,12 +44,14 @@
   [d]
   (cond
     (instance? Date d) d
-    (string? d)        (let [formats ["yyyy-MM-dd" "yyyy-MM-dd'T'HH:mm:ss" "dd/MM/yyyy"]]
-                         (some (fn [fmt]
-                                 (try (.parse (SimpleDateFormat. fmt) d)
-                                      (catch Exception _ nil)))
-                               formats))
-    :else              nil))
+    (string? d)        (or (some (fn [fmt]
+                                   (try (.parse (SimpleDateFormat. fmt) d)
+                                        (catch Exception _ nil)))
+                                 ["yyyy-MM-dd" "yyyy-MM-dd'T'HH:mm:ss" "dd/MM/yyyy"])
+                           (throw (IllegalArgumentException.
+                                   (str "Cannot parse date: " (pr-str d)))))
+    :else              (throw (IllegalArgumentException.
+                               (str "Expected a Date or date string, got: " (type d))))))
 
 (defn- build-search-term
   "Build a jakarta.mail.search.SearchTerm from a criteria map.
@@ -170,16 +172,16 @@
     (messages conn \"INBOX\" {:since \"2025-01-01\" :from \"alice@example.com\"})"
   ([conn folder-name] (messages conn folder-name {}))
   ([conn folder-name opts]
-   (let [folder      (folder/open-folder conn folder-name)
-         search-term (build-search-term opts)
-         msgs        (if search-term
-                       (.search folder search-term)
-                       (.getMessages folder))
-         msgs        (apply-limit msgs (:limit opts))]
+   (let [folder (folder/open-folder conn folder-name)]
      (try
-       (if (:raw? opts)
-         (vec msgs)
-         (fetch-and-parse folder msgs opts))
+       (let [search-term (build-search-term opts)
+             msgs        (if search-term
+                           (.search folder search-term)
+                           (.getMessages folder))
+             msgs        (apply-limit msgs (:limit opts))]
+         (if (:raw? opts)
+           (vec msgs)
+           (fetch-and-parse folder msgs opts)))
        (finally
          (folder/close-folder folder))))))
 
@@ -194,17 +196,17 @@
     (by-uid conn \"INBOX\" [12345 12346 12347])"
   ([conn folder-name uids] (by-uid conn folder-name uids {}))
   ([conn folder-name uids opts]
-   (let [folder   (folder/open-folder conn folder-name)
-         uid-folder ^UIDFolder folder
-         uid-seq  (if (coll? uids) uids [uids])
-         msgs     (into-array Message
-                              (keep #(try (.getMessageByUID uid-folder (long %))
-                                          (catch Exception _ nil))
-                                    uid-seq))]
+   (let [folder (folder/open-folder conn folder-name)]
      (try
-       (if (:raw? opts)
-         (vec msgs)
-         (fetch-and-parse folder msgs opts))
+       (let [uid-folder ^UIDFolder folder
+             uid-seq  (if (coll? uids) uids [uids])
+             msgs     (into-array Message
+                                  (keep #(try (.getMessageByUID uid-folder (long %))
+                                              (catch Exception _ nil))
+                                        uid-seq))]
+         (if (:raw? opts)
+           (vec msgs)
+           (fetch-and-parse folder msgs opts)))
        (finally
          (folder/close-folder folder))))))
 
@@ -218,11 +220,11 @@
     (by-uid-range conn \"INBOX\" 1000 UIDFolder/LASTUID)"
   ([conn folder-name start end] (by-uid-range conn folder-name start end {}))
   ([conn folder-name start end opts]
-   (let [folder     (folder/open-folder conn folder-name)
-         uid-folder ^UIDFolder folder
-         msgs       (.getMessagesByUID uid-folder (long start) (long end))]
+   (let [folder (folder/open-folder conn folder-name)]
      (try
-       (let [valid (into-array Message (remove nil? msgs))]
+       (let [uid-folder ^UIDFolder folder
+             msgs       (.getMessagesByUID uid-folder (long start) (long end))
+             valid      (into-array Message (remove nil? msgs))]
          (if (:raw? opts)
            (vec valid)
            (fetch-and-parse folder valid opts)))

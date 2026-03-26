@@ -161,6 +161,11 @@ clj -T:build install
 clj -T:build deploy
 ```
 
+## Support the Clojure(script) ecosystem
+
+If you like Clojure(script), please consider supporting maintainers by
+donating to [clojuriststogether.org](https://clojuriststogether.org).
+
 ## License
 
 Copyright © 2026 Bastien Guerry

@@ -19,7 +19,7 @@
                    (.put "mail.store.protocol" protocol)
                    (.put (str "mail." protocol ".timeout") (str timeout))
                    (.put (str "mail." protocol ".connectiontimeout") (str connection-timeout)))]
-    (when starttls
+    (when (and starttls (not ssl))
       (.put props "mail.imap.starttls.enable" "true"))
     props))
 
