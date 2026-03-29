@@ -8,7 +8,8 @@
   All functions return parsed Clojure maps (via fetch-imap.parse/message->map)
   unless :raw? true is passed, in which case raw Jakarta Mail Message objects
   are returned."
-  (:require [fetch-imap.folder :as folder]
+  (:require [clojure.tools.logging :as log]
+            [fetch-imap.folder :as folder]
             [fetch-imap.parse :as parse])
   (:import [jakarta.mail Folder Message UIDFolder UIDFolder$FetchProfileItem
             FetchProfile FetchProfile$Item]
@@ -134,11 +135,21 @@
     msgs))
 
 (defn- fetch-and-parse
-  "Fetch messages from a folder, apply FetchProfile, and parse."
+  "Fetch messages from a folder, apply FetchProfile, and parse.
+  Messages that fail to parse are logged and skipped."
   [^Folder folder msgs parse-opts]
   (let [fp (make-fetch-profile parse-opts)]
     (.fetch folder msgs fp)
-    (mapv #(parse/message->map % parse-opts) msgs)))
+    (into []
+          (keep (fn [msg]
+                  (try
+                    (parse/message->map msg parse-opts)
+                    (catch Exception e
+                      (log/warn e "Skipping message"
+                                (.getMessageNumber msg)
+                                "- failed to parse:" (.getMessage e))
+                      nil))))
+          msgs)))
 
 ;; ---------------------------------------------------------------------------
 ;; Public API
