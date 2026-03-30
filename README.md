@@ -161,6 +161,17 @@ clj -T:build install
 clj -T:build deploy
 ```
 
+## Contributing
+
+- Send a [bug report](mailto:~bzg/dev@lists.sr.ht) with `[BUG] fetch-imap: <SHORT EXPLICIT BUG DESCRIPTION>`{.verbatim}
+- Send a [patch](mailto:~bzg/dev@lists.sr.ht) with `[PATCH] fetch-imap: <COMMIT SUMMARY>`{.verbatim}
+- Send a [feature request](mailto:~bzg/dev@lists.sr.ht) with `[FR] fetch-imap: <FEATURE REQUEST>`{.verbatim}
+- Share any [other question or idea](mailto:~bzg/dev@lists.sr.ht)
+
+You can also [send me an email](mailto:bzg@bzg.fr) and support my work
+on [liberapay](https://liberapay.com/bzg/).
+
+
 ## Support the Clojure(script) ecosystem
 
 If you like Clojure(script), please consider supporting maintainers by
