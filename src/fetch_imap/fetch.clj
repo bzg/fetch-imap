@@ -155,6 +155,34 @@
 ;; Public API
 ;; ---------------------------------------------------------------------------
 
+(defn- fetch-by-uid-limit
+  "Fetch the last `limit` messages using UID range instead of loading all.
+  Uses getUIDNext() to estimate the starting UID, then widens the window
+  if too many UIDs were deleted (gaps).  Falls back to getMessages()
+  if the folder does not support UIDs."
+  [^Folder folder limit]
+  (if (instance? UIDFolder folder)
+    (let [uid-folder ^UIDFolder folder
+          uid-next   (.getUIDNext uid-folder)]
+      (if (pos? uid-next)
+        (loop [window (long limit)]
+          (let [start (max 1 (- uid-next window))
+                msgs  (.getMessagesByUID uid-folder (long start) UIDFolder/LASTUID)
+                valid (into-array Message (remove nil? msgs))
+                n     (alength valid)]
+            (if (or (>= n limit)   ;; got enough
+                    (<= start 1))  ;; already at the beginning
+              (apply-limit valid limit)
+              ;; Not enough — widen by 2x the shortfall to converge fast
+              (let [missing    (- limit n)
+                    new-window (+ window (* missing 2))]
+                (log/debug "UID range had" (- window n) "gaps, widening to" new-window)
+                (recur new-window)))))
+        ;; uid-next not available, fall back
+        (apply-limit (.getMessages folder) limit)))
+    ;; Not a UIDFolder, fall back
+    (apply-limit (.getMessages folder) limit)))
+
 (defn messages
   "Fetch messages from a folder.
 
@@ -186,10 +214,16 @@
    (let [folder (folder/open-folder conn folder-name)]
      (try
        (let [search-term (build-search-term opts)
-             msgs        (if search-term
-                           (.search folder search-term)
-                           (.getMessages folder))
-             msgs        (apply-limit msgs (:limit opts))]
+             limit       (:limit opts)
+             msgs        (cond
+                           search-term
+                           (apply-limit (.search folder search-term) limit)
+                           ;; limit-only: use UID range to avoid loading all messages
+                           (some? limit)
+                           (fetch-by-uid-limit folder limit)
+                           ;; No criteria at all: load everything
+                           :else
+                           (.getMessages folder))]
          (if (:raw? opts)
            (vec msgs)
            (fetch-and-parse folder msgs opts)))
