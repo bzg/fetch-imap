@@ -145,7 +145,7 @@
                   (try
                     (parse/message->map msg parse-opts)
                     (catch Exception e
-                      (log/warn e "Skipping message"
+                      (log/warn "Skipping message"
                                 (.getMessageNumber msg)
                                 "- failed to parse:" (.getMessage e))
                       nil))))
