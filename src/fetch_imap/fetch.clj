@@ -155,30 +155,48 @@
 ;; Public API
 ;; ---------------------------------------------------------------------------
 
+(defn- resolve-uid-upper-bound
+  "Return the UID of the newest message in the folder, or -1 if unavailable."
+  [^UIDFolder uid-folder ^Folder folder]
+  (let [uid-next (.getUIDNext uid-folder)]
+    (if (pos? uid-next)
+      uid-next
+      ;; UIDNEXT not reported — derive from the last message
+      (let [cnt (.getMessageCount folder)]
+        (if (pos? cnt)
+          (inc (.getUID uid-folder (.getMessage folder cnt)))
+          -1)))))
+
 (defn- fetch-by-uid-limit
   "Fetch the last `limit` messages using UID range instead of loading all.
-  Uses getUIDNext() to estimate the starting UID, then widens the window
-  if too many UIDs were deleted (gaps).  Falls back to getMessages()
-  if the folder does not support UIDs."
+  Estimates a starting UID from the folder's UID upper bound, then widens
+  the window if too many UIDs were deleted (gaps).  Falls back to
+  getMessages() if the folder does not support UIDs."
   [^Folder folder limit]
   (if (instance? UIDFolder folder)
     (let [uid-folder ^UIDFolder folder
-          uid-next   (.getUIDNext uid-folder)]
-      (if (pos? uid-next)
-        (loop [window (long limit)]
-          (let [start (max 1 (- uid-next window))
-                msgs  (.getMessagesByUID uid-folder (long start) UIDFolder/LASTUID)
-                valid (into-array Message (remove nil? msgs))
-                n     (alength valid)]
-            (if (or (>= n limit)   ;; got enough
-                    (<= start 1))  ;; already at the beginning
-              (apply-limit valid limit)
-              ;; Not enough — widen by 2x the shortfall to converge fast
-              (let [missing    (- limit n)
-                    new-window (+ window (* missing 2))]
-                (log/debug "UID range had" (- window n) "gaps, widening to" new-window)
-                (recur new-window)))))
-        ;; uid-next not available, fall back
+          uid-upper  (resolve-uid-upper-bound uid-folder folder)]
+      (if (pos? uid-upper)
+        (loop [window    (long limit)
+               prev-start Long/MAX_VALUE]
+          (let [start (max 1 (- uid-upper window))]
+            (if (= start prev-start)
+              ;; Window didn't actually move — we're at UID 1, done
+              (apply-limit
+               (into-array Message
+                           (remove nil? (.getMessagesByUID uid-folder 1 UIDFolder/LASTUID)))
+               limit)
+              (let [msgs  (.getMessagesByUID uid-folder (long start) UIDFolder/LASTUID)
+                    valid (into-array Message (remove nil? msgs))
+                    n     (alength valid)]
+                (if (or (>= n limit)
+                        (<= start 1))
+                  (apply-limit valid limit)
+                  (let [missing    (- limit n)
+                        new-window (+ window (* missing 2))]
+                    (log/debug "UID range had" (- window n) "gaps, widening to" new-window)
+                    (recur new-window start)))))))
+        ;; uid-upper not available, fall back
         (apply-limit (.getMessages folder) limit)))
     ;; Not a UIDFolder, fall back
     (apply-limit (.getMessages folder) limit)))
