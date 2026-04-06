@@ -143,7 +143,12 @@
     (into []
           (keep (fn [msg]
                   (try
-                    (parse/message->map msg parse-opts)
+                    (let [parsed (parse/message->map msg parse-opts)]
+                      (when (or (:message-id parsed)
+                                (:subject parsed)
+                                (seq (:from parsed))
+                                (:date-sent parsed))
+                        parsed))
                     (catch Exception e
                       (log/warn "Skipping message"
                                 (.getMessageNumber msg)

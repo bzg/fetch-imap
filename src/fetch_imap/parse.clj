@@ -238,30 +238,33 @@
   ([^Message msg] (message->map msg {}))
   ([^Message msg {:keys [headers? body? attachments?]
                   :or   {headers? true body? true attachments? true}}]
-   (let [mime-msg   ^MimeMessage msg
-         body-data  (when body?
-                      (parse-body mime-msg))
-         ^jakarta.mail.Flags flags (.getFlags msg)]
+   (let [mime-msg  ^MimeMessage msg
+         safe      (fn [f] (try (f) (catch Exception _ nil)))
+         body-data (when body?
+                     (safe #(parse-body mime-msg)))
+         flags     ^jakarta.mail.Flags (safe #(.getFlags msg))]
      (cond-> {:uid            (get-uid msg)
-              :message-id     (.getMessageID mime-msg)
-              :message-number (.getMessageNumber msg)
-              :size           (.getSize msg)
-              :from           (parse-addresses (.getFrom msg))
-              :to             (parse-addresses (.getRecipients msg Message$RecipientType/TO))
-              :cc             (parse-addresses (.getRecipients msg Message$RecipientType/CC))
-              :bcc            (parse-addresses (.getRecipients msg Message$RecipientType/BCC))
-              :reply-to       (parse-addresses (.getReplyTo msg))
-              :subject        (decode-header (.getSubject msg))
-              :date-sent      (.getSentDate msg)
-              :date-received  (.getReceivedDate msg)
-              :content-type   (.getContentType msg)
-              :flags          (cond-> #{}
-                                (.contains flags jakarta.mail.Flags$Flag/SEEN)     (conj :seen)
-                                (.contains flags jakarta.mail.Flags$Flag/ANSWERED)  (conj :answered)
-                                (.contains flags jakarta.mail.Flags$Flag/FLAGGED)   (conj :flagged)
-                                (.contains flags jakarta.mail.Flags$Flag/DELETED)   (conj :deleted)
-                                (.contains flags jakarta.mail.Flags$Flag/DRAFT)     (conj :draft)
-                                (.contains flags jakarta.mail.Flags$Flag/RECENT)    (conj :recent))}
+              :message-id     (safe #(.getMessageID mime-msg))
+              :message-number (safe #(.getMessageNumber msg))
+              :size           (or (safe #(.getSize msg)) -1)
+              :from           (safe #(parse-addresses (.getFrom msg)))
+              :to             (safe #(parse-addresses (.getRecipients msg Message$RecipientType/TO)))
+              :cc             (safe #(parse-addresses (.getRecipients msg Message$RecipientType/CC)))
+              :bcc            (safe #(parse-addresses (.getRecipients msg Message$RecipientType/BCC)))
+              :reply-to       (safe #(parse-addresses (.getReplyTo msg)))
+              :subject        (safe #(decode-header (.getSubject msg)))
+              :date-sent      (safe #(.getSentDate msg))
+              :date-received  (safe #(.getReceivedDate msg))
+              :content-type   (safe #(.getContentType msg))
+              :flags          (if flags
+                                (cond-> #{}
+                                  (.contains flags jakarta.mail.Flags$Flag/SEEN)     (conj :seen)
+                                  (.contains flags jakarta.mail.Flags$Flag/ANSWERED) (conj :answered)
+                                  (.contains flags jakarta.mail.Flags$Flag/FLAGGED)  (conj :flagged)
+                                  (.contains flags jakarta.mail.Flags$Flag/DELETED)  (conj :deleted)
+                                  (.contains flags jakarta.mail.Flags$Flag/DRAFT)    (conj :draft)
+                                  (.contains flags jakarta.mail.Flags$Flag/RECENT)   (conj :recent))
+                                #{})}
 
        body?
        (assoc :body (if attachments?
@@ -269,4 +272,4 @@
                       (dissoc body-data :attachments)))
 
        headers?
-       (assoc :headers (get-all-headers mime-msg))))))
+       (assoc :headers (or (safe #(get-all-headers mime-msg)) {}))))))
