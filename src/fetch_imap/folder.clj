@@ -33,28 +33,20 @@
           folders)))
 
 (defn open-folder
-  "Open a folder by name. Returns a jakarta.mail.Folder.
-  Mode is :readonly (default) or :readwrite.
+  "Open a folder by name in read-only mode. Returns a jakarta.mail.Folder.
 
   Example:
-    (open-folder conn \"INBOX\")
-    (open-folder conn \"INBOX\" :readwrite)"
-  ([conn folder-name] (open-folder conn folder-name :readonly))
-  ([{:keys [^Store store]} ^String folder-name mode]
-   (let [folder (.getFolder store folder-name)
-         m      (case mode
-                  :readonly  Folder/READ_ONLY
-                  :readwrite Folder/READ_WRITE
-                  Folder/READ_ONLY)]
-     (.open folder m)
-     folder)))
+    (open-folder conn \"INBOX\")"
+  [{:keys [^Store store]} ^String folder-name]
+  (let [folder (.getFolder store folder-name)]
+    (.open folder Folder/READ_ONLY)
+    folder))
 
 (defn close-folder
-  "Close a folder. If expunge is true, permanently removes deleted messages."
-  ([^Folder folder] (close-folder folder false))
-  ([^Folder folder expunge]
-   (when (.isOpen folder)
-     (.close folder expunge))))
+  "Close a folder. Never expunges (this library is read-only)."
+  [^Folder folder]
+  (when (.isOpen folder)
+    (.close folder false)))
 
 (defn message-count
   "Return the number of messages in the named folder."
