@@ -15,13 +15,13 @@ Early development — API may change before 1.0.
 deps.edn:
 
 ```clojure
-org.clojars.bzg/fetch-imap {:mvn/version "0.1.0"}
+org.clojars.bzg/fetch-imap {:mvn/version "0.3.7"}
 ```
 
 Leiningen:
 
 ```clojure
-[org.clojars.bzg/fetch-imap "0.1.0"]
+[org.clojars.bzg/fetch-imap "0.3.7"]
 ```
 
 ## Quick start
